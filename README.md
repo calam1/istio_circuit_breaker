@@ -74,6 +74,6 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::cx_act
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.16:5000::cx_active::2
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.20:5000::cx_active::2
 
-The client proxy has 2 active connections to each pod in the target service. Instead of 5, it’ 6. As mentioned in both Envoy and Istio docs, the proxy allows some leeway in terms of the number of connections.
+The client proxy has 2 active connections to each pod in the target service. Instead of 5, it is 6. As mentioned in both Envoy and Istio docs, the proxy allows some leeway in terms of the number of connections.
 
 ```
