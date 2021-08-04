@@ -1,7 +1,7 @@
 ```
 # This github was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
 
-# fyi I am using python 3.9.6
+# fyi I am using python 3.9.6 and assume you have some sort of local kubernetes setup, or have access to EKS, etc. I also assume you have some working knowledge of kubernetes and istio/envoy.
 
 # it's always a good idea to create a virtualenv, and remember to activate it, go into your code repo / root folder
 python3 -m venv ~/.venvs/circuitbreaker
@@ -74,6 +74,6 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::cx_act
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.16:5000::cx_active::2
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.20:5000::cx_active::2
 
-The client proxy has 2 active connections to each pod in the target service. Instead of 5, itâ€™ 6. As mentioned in both Envoy and Istio docs, the proxy allows some leeway in terms of the number of connections.
+The client proxy has 2 active connections to each pod in the target service. Instead of 5, it’ 6. As mentioned in both Envoy and Istio docs, the proxy allows some leeway in terms of the number of connections.
 
 ```
