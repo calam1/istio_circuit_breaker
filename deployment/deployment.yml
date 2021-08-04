@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pyserver
+  labels:
+    app: pyserver
+spec:
+  ports:
+  - name: pyserver
+    port: 80
+    targetPort: 5000
+  selector:
+    app: pyserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pyserver
+  labels:
+    app: pyserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pyserver
+  template:
+    metadata:
+      labels:
+        app: pyserver
+    spec:
+      containers:
+      - image: py_server:latest
+        imagePullPolicy: IfNotPresent
+        name: pyserver
+        ports:
+        - name: pyserver
+          containerPort: 5000
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pyclient
+  labels:
+    app: pyclient
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: pyclient
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pyclient
+  labels:
+    app: pyclient
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pyclient
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pyclient
+    spec:
+      containers:
+      - image: py_client:latest
+        imagePullPolicy: IfNotPresent
+        name: pyclient
+        ports:
+        - name: pyserver
+          containerPort: 8080
+      restartPolicy: Always
+
+---
+
+# Copyright 2017 Istio Authors
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+ 
+##################################################################################################
+# Sleep service
+##################################################################################################
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sleep
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sleep
+  labels:
+    app: sleep
+spec:
+  ports:
+  - port: 80
+    name: http
+  selector:
+    app: sleep
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sleep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sleep
+  template:
+    metadata:
+      labels:
+        app: sleep
+    spec:
+      serviceAccountName: sleep
+      containers:
+      - name: sleep
+        image: governmentpaas/curl-ssl
+        command: ["/bin/sleep", "3650d"]
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /etc/sleep/tls
+          name: secret-volume
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: sleep-secret
+          optional: true
