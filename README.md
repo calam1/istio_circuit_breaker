@@ -1,6 +1,10 @@
 ```
 # This github was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
 
+# Reference
+# https://www.envoyproxy.io/docs/envoy/v1.15.4/api-v3/config/cluster/v3/circuit_breaker.proto#envoy-v3-api-field-config-cluster-v3-circuitbreakers-thresholds-retry-budget
+# https://blog.turbinelabs.io/circuit-breaking-da855a96a61d - overview of configuring circuit breaking
+
 # fyi I am using python 3.9.6 and assume you have some sort of local kubernetes setup, or have access to EKS, etc. I also assume you have some working knowledge of kubernetes and istio/envoy.
 
 # it's always a good idea to create a virtualenv, and remember to activate it, go into your code repo / root folder
