@@ -224,10 +224,11 @@ Conclusion for max connections deep dive
 
 
 # Some stats
-kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver                                                               on branch: main
+kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver 
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0outbound|80||pyserver.circuitbreaker.svc.cluster.local::default_priority::max_connections::5
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+outbound|80||pyserver.circuitbreaker.svc.cluster.local::default_priority::max_connections::5
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::default_priority::max_pending_requests::1
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::default_priority::max_requests::4294967295
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::default_priority::max_retries::4294967295
