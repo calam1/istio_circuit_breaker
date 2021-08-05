@@ -26,6 +26,9 @@ eval $(minikube -p minikube docker-env)
 # server
 docker build -t py_server --file Dockerfile_server . 
 
+# server_503 - this server will be used in later demonstrations but mind as well build it out for now
+docker build -t py_server503 --file Dockerfile_server_503 .  
+
 # client
 docker build -t py_client --file Dockerfile_client .
 
@@ -260,6 +263,27 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::priori
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::success_rate::-1.0
 outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::local_origin_success_rate::-1.0
 100 90533    0 90533    0     0  9823k      0 --:--:-- --:--:-- --:--:-- 10.7M
+
+
+## Example of one bad server and one good server
+
+# delete the old deployment we ran above
+kubectl delete -f deployment/deployment.yml -n circuitbreaker 
+
+# apply the new deployment file
+kubectl apply -f deployment/deployment_503.yml -n circuitbreaker 
+
+# apply the bad.yml - this just splits traffic between the pyserver and pyserver503
+kubectl apply -f deployment/bad.yml -n circuitbreaker 
+
+# we are doing round robin load balancing, but it may not always look like it - https://www.envoyproxy.io/docs/envoy/latest/faq/load_balancing/concurrency_lb
+# remember the 200 status code server has a 5 second sleep
+for i in {1..5};  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -i http://pyserver/index; done
+
+
+
+
+
 
 
 ```

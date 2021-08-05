@@ -1,0 +1,10 @@
+FROM python:3.9.6-alpine
+WORKDIR /project
+ADD ./server_200.py /project
+ADD ./requirements.txt /project
+RUN pip install -r requirements.txt
+
+EXPOSE 5005
+
+ENTRYPOINT [ "python" ]
+CMD [ "server_200.py" ]
