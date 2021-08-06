@@ -52,6 +52,7 @@ spec:
   selector:
     matchLabels:
       app: pyserver
+      version: v2
   template:
     metadata:
       labels:

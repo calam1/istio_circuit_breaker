@@ -51,7 +51,7 @@ kubectl apply -f deployment/deployment.yml -n circuitbreaker
 
 ## Testing one client and one server
 # max connections 5, notice in the client logs, that only 5 requests get served in about 5 seconds and the other 5 are about 10 seconds
- kubectl apply -f deployment/destination_max_5.yml -n circuitbreaker  
+kubectl apply -f deployment/destination_max_5.yml -n circuitbreaker  
 
 # fail fast set http1MaxPendingRequests to 1, so we get 503 error codes - you will typically(not guaranteed) see 5 processes finish about 5 seconds 1 process finish in about 10 seconds then the other 4 fail
 kubectl apply -f deployment/destination_fail_fast.yml -n circuitbreaker  
@@ -71,7 +71,7 @@ pyclient STATUS: 200, START: 22:26:00, END: 22:26:10, TIME: 10.016169786453247
 ## Testing one client and and multiple (3) servers
 kubectl scale deployment/pyserver --replicas=3
 
-So we are still using the deployment/destination_fail_fast.yml configuration. What are our expectations, that since we have 4 servers we should have 4 times the capacity regarding the circuit breaker? If you look at the logs the failure/success rate are similar to if we just had one server.  This tells us the destination config applies to the "service" and not the "pods"
+So we are still using the deployment/destination_fail_fast.yml configuration. What are our expectations, that since we have 3 servers we should have 3 times the capacity regarding the circuit breaker? If you look at the logs the failure/success rate are similar to if we just had one server.  This tells us the destination config applies to the "service" and not the "pods"
 
 Let' see how many servers our client is hooked up to
 
@@ -137,6 +137,8 @@ istioctl install --set meshConfig.accessLogFile=/dev/stdout
 # UO : Upstream overflow (circuit breaking)
 # URX : The request was rejected because the upstream retry limit (HTTP) or maximum connect attempts (TCP) was reached.
 # Now it’s starting to make some sense. Requests with UO flag are throttled locally by the client proxy. Requests with URX flag are rejected by the destination service proxy. This is also corroborated by values of other fields in the log such as DURATION , UPSTREAM_HOST and UPSTREAM_CLUSTER .
+These are usually in the logs when you are in the "Deployments" tab of K9S
+- or -
 kubectl logs -l app=pyclient -c istio-proxy 
 [2021-08-05T17:18:40.397Z] "GET /index HTTP/1.1" 503 UO "-" "-" 0 81 0 - "-" "python-requests/2.26.0" "2e520630-01e9-4857-9d71-d8219f261af2" "pyserver" "-" - - 10.103.127.9:80 172.17.0.12:48556 - default
 [2021-08-05T17:18:40.397Z] "GET /index HTTP/1.1" 503 UO "-" "-" 0 81 0 - "-" "python-requests/2.26.0" "7d7ac348-33ea-4b9e-b0ff-8ed7c02d5392" "pyserver" "-" - - 10.103.127.9:80 172.17.0.12:48558 - default
@@ -286,53 +288,78 @@ for i in {1..5};  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreak
 -or-
 while true; do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done  
 
-# I don't really see this working besides in Kiali, not having an active edge, but we still get back 503s and I don't see any logs in the pyserver502
-https://github.com/istio/istio/issues/8846
-https://github.com/istio/api/issues/909
-https://istio.io/latest/docs/tasks/traffic-management/circuit-breaking/ - I don't have this turned on, I tried it anyway but it did not make a difference
+# So it looks like the pod gets ejected (the bad pod is returning a 502), but afterwards we start getting 503s; so the load balancer seems to be hitting it
+https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
+# supposedly working examples
+https://sfeir.github.io/kubernetes-istio-workshop/kubernetes-istio-workshop/1.0.0/istio/07_circuit-breaker.html
 
-# stats for outlier
-# we do see 2 ejections, etc, hmmm
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_active: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_consecutive_5xx: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_5xx: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_gateway_failure: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_local_origin_failure: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_failure_percentage: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_failure_percentage: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_success_rate: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_success_rate: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_5xx: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_gateway_failure: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_local_origin_failure: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_failure_percentage: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_failure_percentage: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_success_rate: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_success_rate: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_total: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_overflow: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_success_rate: 0
-cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_total: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_active: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_consecutive_5xx: 2
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_5xx: 2
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_gateway_failure: 2
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_local_origin_failure: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_failure_percentage: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_failure_percentage: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_success_rate: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_success_rate: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_5xx: 2
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_gateway_failure: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_local_origin_failure: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_failure_percentage: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_failure_percentage: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_success_rate: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_success_rate: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_total: 2
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_overflow: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_success_rate: 0
-cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_total: 2
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+content-length: 26
+server: envoy
+date: Fri, 06 Aug 2021 00:38:04 GMT
+x-envoy-upstream-service-time: 2
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0HTTP/1.1 502 Bad Gateway
+content-type: text/html; charset=utf-8
+content-length: 28
+server: envoy
+date: Fri, 06 Aug 2021 00:38:05 GMT
+x-envoy-upstream-service-time: 2
+
+  0    28    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    28    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 502 Bad Gateway
+content-type: text/html; charset=utf-8
+content-length: 28
+server: envoy
+date: Fri, 06 Aug 2021 00:38:07 GMT
+x-envoy-upstream-service-time: 2
+
+HTTP/1.1 503 Service Unavailable
+content-length: 19
+content-type: text/plain
+date: Fri, 06 Aug 2021 00:38:08 GMT
+server: envoy
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     HTTP/1.1 503 Service Unavailable
+content-length: 19
+content-type: text/plain
+date: Fri, 06 Aug 2021 00:38:09 GMT
+server: envoy
+
+0
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0HTTP/1.1 503 Service Unavailable
+content-length: 19
+content-type: text/plain
+date: Fri, 06 Aug 2021 00:38:10 GMT
+server: envoy
+
+  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+content-length: 26
+server: envoy
+date: Fri, 06 Aug 2021 00:38:12 GMT
+x-envoy-upstream-service-time: 2
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    26    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    26    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
 
 
 ```
