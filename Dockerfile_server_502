@@ -1,12 +1,12 @@
 FROM python:3.9.6-alpine
 WORKDIR /project
-ADD ./server_503.py /project
+ADD ./server_502.py /project
 ADD ./requirements.txt /project
 RUN pip install -r requirements.txt
 
-EXPOSE 5003
+EXPOSE 5000
 
 #CMD ["python","server.py"]
 
 ENTRYPOINT [ "python" ]
-CMD [ "server_503.py" ]
+CMD [ "server_502.py" ]

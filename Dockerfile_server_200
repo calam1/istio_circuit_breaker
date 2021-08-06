@@ -4,7 +4,7 @@ ADD ./server_200.py /project
 ADD ./requirements.txt /project
 RUN pip install -r requirements.txt
 
-EXPOSE 5005
+EXPOSE 5000
 
 ENTRYPOINT [ "python" ]
 CMD [ "server_200.py" ]

@@ -6,7 +6,7 @@ metadata:
     app: pyserver
 spec:
   ports:
-  - name: pyserver
+  - name: http-web
     port: 80
     targetPort: 5000
   selector:
@@ -15,7 +15,8 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pyserver
+  # name: pyserver
+  name: pyserver-v1
   labels:
     app: pyserver
     version: v1
@@ -32,19 +33,17 @@ spec:
         version: v1
     spec:
       containers:
-      - image: py_server:latest
-      # - image: py_server200:latest
+      # - image: py_server:latest
+      - image: py_server200:latest
         imagePullPolicy: IfNotPresent
         name: pyserver
         ports:
-        - name: pyserver
-          containerPort: 5000
-      restartPolicy: Always
+          - containerPort: 5000
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pyserver503
+  name: pyserver-v2
   labels:
     app: pyserver
     version: v2
@@ -61,12 +60,10 @@ spec:
     spec:
       containers:
       - name: pyserver
-        image: py_server503:latest
+        image: py_server502:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - name: pyserver
-          containerPort: 5003
-      restartPolicy: Always
+          - containerPort: 5000
 ---
 
 # Copyright 2017 Istio Authors

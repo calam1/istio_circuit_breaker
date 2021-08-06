@@ -15,10 +15,10 @@ spec:
         host: pyserver
         subset: v2
       weight: 50
-    retries:
-      attempts: 3
-      perTryTimeout: 2s
-      retryOn: 5xx
+    # retries:
+      # attempts: 3
+      # perTryTimeout: 2s
+      # retryOn: 5xx
 
 ---
 
@@ -36,6 +36,11 @@ spec:
       loadBalancer:
         # simple: RANDOM
         simple: ROUND_ROBIN
+      outlierDetection:
+        baseEjectionTime: 3m
+        consecutiveErrors: 1
+        interval: 1s
+        maxEjectionPercent: 100
   - name: v2
     labels:
       version: v2
@@ -43,3 +48,12 @@ spec:
       loadBalancer:
         # simple: RANDOM
         simple: ROUND_ROBIN
+      outlierDetection:
+        # don't send traffic for 3 minutes if errors exist
+        baseEjectionTime: 3m
+        # one error happens then eject it
+        consecutiveErrors: 1
+        # how often istio checks
+        interval: 1s
+        # 100% of bad containers can be evicted
+        maxEjectionPercent: 100

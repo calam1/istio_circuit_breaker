@@ -26,8 +26,11 @@ eval $(minikube -p minikube docker-env)
 # server
 docker build -t py_server --file Dockerfile_server . 
 
-# server_503 - this server will be used in later demonstrations but mind as well build it out for now
-docker build -t py_server503 --file Dockerfile_server_503 .  
+# server_502 - this server will be used in later demonstrations but mind as well build it out for now
+docker build -t py_server502 --file Dockerfile_server_502 .  
+
+# server_200 - this server will be used in later demonstrations but mind as well build it out for now
+docker build -t py_server200 --file Dockerfile_server_200 .  
 
 # client
 docker build -t py_client --file Dockerfile_client .
@@ -271,19 +274,65 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::local_
 kubectl delete -f deployment/deployment.yml -n circuitbreaker 
 
 # apply the new deployment file
-kubectl apply -f deployment/deployment_503.yml -n circuitbreaker 
+kubectl apply -f deployment/deployment_502.yml -n circuitbreaker 
 
-# apply the bad.yml - this just splits traffic between the pyserver and pyserver503
+# apply the bad.yml - this just splits traffic between the pyserver200 and pyserver502 - so you will get a mix of 200 and 502 response codes
+# note this virtual service has retry logic in it also - https://istio.io/v1.7/docs/concepts/traffic-management/#retries
 kubectl apply -f deployment/bad.yml -n circuitbreaker 
 
 # we are doing round robin load balancing, but it may not always look like it - https://www.envoyproxy.io/docs/envoy/latest/faq/load_balancing/concurrency_lb
-# remember the 200 status code server has a 5 second sleep
-for i in {1..5};  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -i http://pyserver/index; done
+# to hit the server multiple times, the following will do
+for i in {1..5};  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done 
+-or-
+while true; do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done  
 
+# I don't really see this working besides in Kiali, not having an active edge, but we still get back 503s and I don't see any logs in the pyserver502
+https://github.com/istio/istio/issues/8846
+https://github.com/istio/api/issues/909
+https://istio.io/latest/docs/tasks/traffic-management/circuit-breaking/ - I don't have this turned on, I tried it anyway but it did not make a difference
 
-
-
-
+# stats for outlier
+# we do see 2 ejections, etc, hmmm
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_active: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_consecutive_5xx: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_5xx: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_gateway_failure: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_local_origin_failure: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_failure_percentage: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_failure_percentage: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_success_rate: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_success_rate: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_5xx: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_gateway_failure: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_local_origin_failure: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_failure_percentage: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_failure_percentage: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_success_rate: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_success_rate: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_total: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_overflow: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_success_rate: 0
+cluster.outbound|80|v1|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_total: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_active: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_consecutive_5xx: 2
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_5xx: 2
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_gateway_failure: 2
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_local_origin_failure: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_failure_percentage: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_failure_percentage: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_local_origin_success_rate: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_success_rate: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_5xx: 2
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_gateway_failure: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_consecutive_local_origin_failure: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_failure_percentage: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_failure_percentage: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_local_origin_success_rate: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_success_rate: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_enforced_total: 2
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_overflow: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_success_rate: 0
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_total: 2
 
 
 ```
