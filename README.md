@@ -310,12 +310,9 @@ Even though the above results show 503 still the Kiali topological graph shows o
 
 No gateway with no pod eviction
 ![](/images/no_gateway_5050.png)
-![no_gateway_5050](https://user-images.githubusercontent.com/919900/128582030-466f748e-85a2-4229-bbf8-f6dc845c7d67.png)
-
 
 No gateway with pod eviction
 ![](/images/no_gateway_100.png)
-![no_gateway_100](https://user-images.githubusercontent.com/919900/128582022-38bb0cf5-c6d4-4c8f-b97a-6fee5606795e.png)
 
 
 ## now if you want to add a gateway, which may be the right thing to do anyway. Checked in code has gateway code
@@ -332,16 +329,12 @@ istio-ingressgateway   LoadBalancer   10.108.70.51   127.0.0.1     15021:31543/T
 
 This seems to be evicting and redirecting traffic correctly
 ![](/images/gateway_100.png)
-![gateway_100](https://user-images.githubusercontent.com/919900/128582013-d687a9ce-8ddb-4257-aa70-0cdea69b73c3.png)
-
 
 # infinite curl internal via kubectl
 while true;  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done
 
 This appears to be bypassing at the minimum the VirtualService and the DestinationRule.  In the VirtualService I changed the route weights from 50/50 to 90/10 and yet the Kiali graph still shows 50/50
 ![](/images/gateway_internal_call_bypass.png)
-![gateway_internal_call_bypass](https://user-images.githubusercontent.com/919900/128581986-70f902bb-d693-451a-a298-8b651a3c656e.png)
-
 
 There is one concern and it was a concern that was noted on the test without the gateway. Even though graphically things look good in this scenario. I was still getting 503s on the external curl. The 503's are legit, there is no upstream, vs the 502 error my service was returning. I am not sure what is going on here. There is a discussion about it; but without a clear answer:
 https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
