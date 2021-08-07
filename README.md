@@ -290,76 +290,27 @@ while true; do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o 
 
 # So it looks like the pod gets ejected (the bad pod is returning a 502), but afterwards we start getting 503s; so the load balancer seems to be hitting it
 https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
-# supposedly working examples
-https://sfeir.github.io/kubernetes-istio-workshop/kubernetes-istio-workshop/1.0.0/istio/07_circuit-breaker.html
 
-HTTP/1.1 200 OK
-content-type: text/html; charset=utf-8
-content-length: 26
-server: envoy
-date: Fri, 06 Aug 2021 00:38:04 GMT
-x-envoy-upstream-service-time: 2
 
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0HTTP/1.1 502 Bad Gateway
-content-type: text/html; charset=utf-8
-content-length: 28
-server: envoy
-date: Fri, 06 Aug 2021 00:38:05 GMT
-x-envoy-upstream-service-time: 2
+# how to check if the outlier worked, appears to be working
+kubectl get pods -n circuitbreaker
+NAME                             READY   STATUS    RESTARTS   AGE
+fortio-deploy-576dbdfbc4-cbc9b   2/2     Running   0          22m
+pyserver-v1-7c9d68c88c-x89mw     2/2     Running   0          19m
+pyserver-v2-6558c4f599-pg2fg     2/2     Running   0          19m
+sleep-854565cb79-45z26           2/2     Running   0          19m
 
-  0    28    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0    28    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-HTTP/1.1 502 Bad Gateway
-content-type: text/html; charset=utf-8
-content-length: 28
-server: envoy
-date: Fri, 06 Aug 2021 00:38:07 GMT
-x-envoy-upstream-service-time: 2
+# this doesn't always work, like the pod is unrecognized at times 
+istioctl pc endpoints fortio-deploy-576dbdfbc4-cbc9b | grep pyserver
+172.17.0.16:5000                 HEALTHY     FAILED            outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local
+172.17.0.16:5000                 HEALTHY     OK                outbound|80||pyserver.circuitbreaker.svc.cluster.local
 
-HTTP/1.1 503 Service Unavailable
-content-length: 19
-content-type: text/plain
-date: Fri, 06 Aug 2021 00:38:08 GMT
-server: envoy
 
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     HTTP/1.1 503 Service Unavailable
-content-length: 19
-content-type: text/plain
-date: Fri, 06 Aug 2021 00:38:09 GMT
-server: envoy
+Even though the above results show 503 still the Kiali topological graph shows otherwise, maybe it's something to do with calling the api from an internal app vs doing a curl on the terminal to an actual endpoint. I will test this out. Regardless here are some images to show this.  At this point I have not added a Gateway
 
-0
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0HTTP/1.1 503 Service Unavailable
-content-length: 19
-content-type: text/plain
-date: Fri, 06 Aug 2021 00:38:10 GMT
-server: envoy
+![Image Kiali 5050][images/no_gateway_5050.png]
 
-  0    19    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-HTTP/1.1 200 OK
-content-type: text/html; charset=utf-8
-content-length: 26
-server: envoy
-date: Fri, 06 Aug 2021 00:38:12 GMT
-x-envoy-upstream-service-time: 2
 
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0    26    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0    26    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
 
 
 ```
