@@ -270,7 +270,7 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::local_
 100 90533    0 90533    0     0  9823k      0 --:--:-- --:--:-- --:--:-- 10.7M
 
 
-## Example of one bad server and one good server
+## Example of one bad server and one good server and no gateway defined - the checked in code has a gateway you can just remove it and any reference to it. Not sure if it is a good idea to not have a gateway defined. Will need to read up on that.
 
 # delete the old deployment we ran above
 kubectl delete -f deployment/deployment.yml -n circuitbreaker 
@@ -308,10 +308,36 @@ istioctl pc endpoints fortio-deploy-576dbdfbc4-cbc9b | grep pyserver
 
 Even though the above results show 503 still the Kiali topological graph shows otherwise, maybe it's something to do with calling the api from an internal app vs doing a curl on the terminal to an actual endpoint. I will test this out. Regardless here are some images to show this.  At this point I have not added a Gateway
 
-![Image Kiali 5050][images/no_gateway_5050.png]
+No gateway with no pod eviction
+![Image Kiali no gateway 5050](images/no_gateway_5050.png)
+
+No gateway with pod eviction
+![Image Kiali no gateway eviction](images/no_gateway_100.png)
 
 
+## now if you want to add a gateway, which may be the right thing to do anyway. Checked in code has gateway code
+you have to first run
+minikube tunnel
 
+# then double check your external IP 
+kubectl get svc istio-ingressgateway -n istio-system
+NAME                   TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                                                      AGE
+istio-ingressgateway   LoadBalancer   10.108.70.51   127.0.0.1     15021:31543/TCP,80:30147/TCP,443:30001/TCP,31400:32365/TCP,15443:31370/TCP   102m
+
+# infinite curl external endpoint
+ while true; do curl -I  localhost/index; sleep .5; done 
+
+This seems to be evicting and redirecting traffic correctly
+![Image Kiali gateway external curl](images/gateway_100.png)
+
+# infinite curl internal via kubectl
+while true;  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done
+
+This appears to be bypassing at the minimum the VirtualService and the DestinationRule.  In the VirtualService I changed the route weights from 50/50 to 90/10 and yet the Kiali graph still shows 50/50
+![Image Kiali gateway bypass gateway](images/gateway_internal_call_bypass.png)
+
+There is one concern and it was a concern that was noted on the test without the gateway. Even though graphically things look good in this scenario. I was still getting 503s on the external curl. The 503's are legit, there is no upstream, vs the 502 error my service was returning. I am not sure what is going on here. There is a discussion about it; but without a clear answer:
+https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
 
 ```
 
