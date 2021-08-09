@@ -1,3 +1,4 @@
+Envoy circuit breaker / outlier detection demo
 ```
 # This github(the circuit breaker part not the outlier detection) was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
 
@@ -34,7 +35,7 @@ so you must dpctl pip-login first then:
 # server_200 - this server will be used in later demonstrations but mind as well build it out for now
 > docker build -t py_server200 --file Dockerfile_server_200 .  
 
-# client
+# client - this client is just looping
 > docker build -t py_client --file Dockerfile_client .
 
 ## minikube 
@@ -52,6 +53,7 @@ so you must dpctl pip-login first then:
 
 ## Testing one client and one server
 # max connections 5, notice in the client logs, that only 5 requests get served in about 5 seconds and the other 5 are about 10 seconds
+# you can look at the client logs, for output
 > kubectl apply -f deployment/destination_max_5.yml -n circuitbreaker  
 
 # fail fast set http1MaxPendingRequests to 1, so we get 503 error codes - you will typically(not guaranteed) see 5 processes finish about 5 seconds 1 process finish in about 10 seconds then the other 4 fail
