@@ -1,28 +1,9 @@
 apiVersion: networking.istio.io/v1alpha3
-kind: Gateway
-metadata:
-  name: pyserver
-spec:
-  servers:
-    - hosts:
-        - "*"
-      port:
-        name: http
-        number: 80
-        protocol: HTTP
-  selector:
-    istio: ingressgateway
-
----
-
-apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   name: pyserver
 spec:
   hosts:
-    - "*"
-  gateways:
     - pyserver
   http:
   - match:

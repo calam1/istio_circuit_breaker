@@ -1,14 +1,16 @@
 ```
-# This github was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
+# This github(the circuit breaker part not the outlier detection) was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
 
 # Reference
 # https://www.envoyproxy.io/docs/envoy/v1.15.4/api-v3/config/cluster/v3/circuit_breaker.proto#envoy-v3-api-field-config-cluster-v3-circuitbreakers-thresholds-retry-budget
 # https://blog.turbinelabs.io/circuit-breaking-da855a96a61d - overview of configuring circuit breaking
+# https://blog.christianposta.com/microservices/01-microservices-patterns-with-envoy-proxy-part-i-circuit-breaking/
+# https://blog.christianposta.com/microservices/02-microservices-patterns-with-envoy-proxy-part-ii-timeouts-and-retries/
 
 # fyi I am using python 3.9.6 and assume you have some sort of local kubernetes setup, or have access to EKS, etc. I also assume you have some working knowledge of kubernetes and istio/envoy.
 
 # it's always a good idea to create a virtualenv, and remember to activate it, go into your code repo / root folder
-python3 -m venv ~/.venvs/circuitbreaker
+> python3 -m venv ~/.venvs/circuitbreaker
 source  ~/.venvs/circuitbreaker/bin/activate
 
 If you are are like most of us, you have performed some actions that override default pip - https://confluence.grainger.com/display/PLE/Using+AWS+CodeArtifact#UsingAWSCodeArtifact-PIPPIP
@@ -16,45 +18,44 @@ If you are are like most of us, you have performed some actions that override de
 so you must dpctl pip-login first then:
 
 # install flask and requests
-pip3 install flask
-pip3 install requests   
+> pip3 install flask
+> pip3 install requests   
 
 # to depoly onto minikube remember to set the minikube docker context; this is so that your minikube has access to your docker image
-eval $(minikube -p minikube docker-env)  
+> eval $(minikube -p minikube docker-env)  
 
 # then build the docker images for the test apps
 # server
-docker build -t py_server --file Dockerfile_server . 
+> docker build -t py_server --file Dockerfile_server . 
 
 # server_502 - this server will be used in later demonstrations but mind as well build it out for now
-docker build -t py_server502 --file Dockerfile_server_502 .  
+> docker build -t py_server502 --file Dockerfile_server_502 .  
 
 # server_200 - this server will be used in later demonstrations but mind as well build it out for now
-docker build -t py_server200 --file Dockerfile_server_200 .  
+> docker build -t py_server200 --file Dockerfile_server_200 .  
 
 # client
-docker build -t py_client --file Dockerfile_client .
+> docker build -t py_client --file Dockerfile_client .
 
 ## minikube 
 # create a new namespace
-kubectl create namespace circuitbreaker 
+> kubectl create namespace circuitbreaker 
 
 # enable sidecar injection
-kubectl label namespace circuitbreaker istio-injection=enabled --overwrite
+> kubectl label namespace circuitbreaker istio-injection=enabled --overwrite
 
 # check to see if your namespace, circuitbreaker is enabled
-kubectl get namespace -L istio-injection
+> kubectl get namespace -L istio-injection
 
 # deploy the apps 
-kubectl apply -f deployment/deployment.yml -n circuitbreaker 
-
+> kubectl apply -f deployment/deployment.yml -n circuitbreaker 
 
 ## Testing one client and one server
 # max connections 5, notice in the client logs, that only 5 requests get served in about 5 seconds and the other 5 are about 10 seconds
-kubectl apply -f deployment/destination_max_5.yml -n circuitbreaker  
+> kubectl apply -f deployment/destination_max_5.yml -n circuitbreaker  
 
 # fail fast set http1MaxPendingRequests to 1, so we get 503 error codes - you will typically(not guaranteed) see 5 processes finish about 5 seconds 1 process finish in about 10 seconds then the other 4 fail
-kubectl apply -f deployment/destination_fail_fast.yml -n circuitbreaker  
+> kubectl apply -f deployment/destination_fail_fast.yml -n circuitbreaker  
 
 pyclient ----------START BATCH----------
 pyclient STATUS: 503, START: 22:26:00, END: 22:26:00, TIME: 0.013655900955200195
@@ -69,13 +70,13 @@ pyclient STATUS: 200, START: 22:26:00, END: 22:26:05, TIME: 5.019253492355347
 pyclient STATUS: 200, START: 22:26:00, END: 22:26:10, TIME: 10.016169786453247
 
 ## Testing one client and and multiple (3) servers
-kubectl scale deployment/pyserver --replicas=3
+> kubectl scale deployment/pyserver --replicas=3
 
 So we are still using the deployment/destination_fail_fast.yml configuration. What are our expectations, that since we have 3 servers we should have 3 times the capacity regarding the circuit breaker? If you look at the logs the failure/success rate are similar to if we just had one server.  This tells us the destination config applies to the "service" and not the "pods"
 
 Let' see how many servers our client is hooked up to
 
-kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver | grep cx_active
+> kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver | grep cx_active
 
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
@@ -88,8 +89,8 @@ The client proxy has 2 active connections to each pod in the target service. Ins
 
 
 ## Testing multiple(3) clients and and a single server
-kubectl scale deployment/pyserver --replicas=1
-kubectl scale deployment/pyclient --replicas=3
+> kubectl scale deployment/pyserver --replicas=1
+> kubectl scale deployment/pyclient --replicas=3
 
 # you see there are 7 200 response codes and the rest are 503s, there is leeway here for the limiting, and human error regarding me copying the logs and getting the correct time span, etc
 
@@ -130,7 +131,7 @@ pyclient-754df7b797-5x28s:pyclient STATUS: 503, START: 13:04:20, END: 13:04:20, 
 pyclient-754df7b797-5x28s:pyclient STATUS: 503, START: 13:04:20, END: 13:04:20, TIME: 0.0331878662109375           
 
 # if you don't have access logs run the following
-istioctl install --set meshConfig.accessLogFile=/dev/stdout 
+> istioctl install --set meshConfig.accessLogFile=/dev/stdout 
 
 # get the access logs
 # The first thing we notice is RESPONSE_FLAGS — UO and URX . Let’s see what these mean:
@@ -139,7 +140,7 @@ istioctl install --set meshConfig.accessLogFile=/dev/stdout
 # Now it’s starting to make some sense. Requests with UO flag are throttled locally by the client proxy. Requests with URX flag are rejected by the destination service proxy. This is also corroborated by values of other fields in the log such as DURATION , UPSTREAM_HOST and UPSTREAM_CLUSTER .
 These are usually in the logs when you are in the "Deployments" tab of K9S
 - or -
-kubectl logs -l app=pyclient -c istio-proxy 
+> kubectl logs -l app=pyclient -c istio-proxy 
 [2021-08-05T17:18:40.397Z] "GET /index HTTP/1.1" 503 UO "-" "-" 0 81 0 - "-" "python-requests/2.26.0" "2e520630-01e9-4857-9d71-d8219f261af2" "pyserver" "-" - - 10.103.127.9:80 172.17.0.12:48556 - default
 [2021-08-05T17:18:40.397Z] "GET /index HTTP/1.1" 503 UO "-" "-" 0 81 0 - "-" "python-requests/2.26.0" "7d7ac348-33ea-4b9e-b0ff-8ed7c02d5392" "pyserver" "-" - - 10.103.127.9:80 172.17.0.12:48558 - default
 [2021-08-05T17:18:40.397Z] "GET /index HTTP/1.1" 503 UO "-" "-" 0 81 0 - "-" "python-requests/2.26.0" "2e6b0765-778a-423f-b4dd-28f506b3b28c" "pyserver" "-" - - 10.103.127.9:80 172.17.0.12:48560 - default
@@ -175,7 +176,7 @@ kubectl logs -l app=pyclient -c istio-proxy
 
 
 ## Testing multiple(3) clients and and multiple (3) servers
-kubectl scale deployment/pyserver --replicas=3
+> kubectl scale deployment/pyserver --replicas=3
 
 
 # There are about 20 or so 200s and the rest are 503s, as mentioned before, due to human error and selecting the correct time range to cut and paste the math may not work out perfectly
@@ -236,7 +237,7 @@ Conclusion for max connections deep dive
 
 
 # Some stats
-kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver 
+> kubectl exec $(kubectl get pod --selector app=pyclient --output jsonpath='{.items[0].metadata.name}') -c istio-proxy -- curl -X POST http://localhost:15000/clusters | grep pyserver 
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
@@ -273,14 +274,14 @@ outbound|80||pyserver.circuitbreaker.svc.cluster.local::172.17.0.15:5000::local_
 ## Example of one bad server and one good server and no gateway defined - the checked in code has a gateway you can just remove it and any reference to it. Not sure if it is a good idea to not have a gateway defined. Will need to read up on that.
 
 # delete the old deployment we ran above
-kubectl delete -f deployment/deployment.yml -n circuitbreaker 
+> kubectl delete -f deployment/deployment.yml -n circuitbreaker 
 
 # apply the new deployment file
-kubectl apply -f deployment/deployment_502.yml -n circuitbreaker 
+> kubectl apply -f deployment/deployment_502.yml -n circuitbreaker 
 
 # apply the bad.yml - this just splits traffic between the pyserver200 and pyserver502 - so you will get a mix of 200 and 502 response codes
 # note this virtual service has retry logic in it also - https://istio.io/v1.7/docs/concepts/traffic-management/#retries
-kubectl apply -f deployment/bad.yml -n circuitbreaker 
+> kubectl apply -f deployment/bad.yml -n circuitbreaker 
 
 # we are doing round robin load balancing, but it may not always look like it - https://www.envoyproxy.io/docs/envoy/latest/faq/load_balancing/concurrency_lb
 # to hit the server multiple times, the following will do
@@ -288,29 +289,65 @@ for i in {1..5};  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreak
 -or-
 while true; do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done  
 
-# So it looks like the pod gets ejected (the bad pod is returning a 502), but afterwards we start getting 503s; so the load balancer seems to be hitting it
-https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
 
+# so let's put some protections in against bad pods, this will have circuit breaking and outlier detection, we are concerned about outlier detection in this exercise, since we went through the circuit breaker stuff earlier
+> kubectl apply -f development/outlier_no_gateway.yml -n circuitbreaker
+
+# assuming you still have the following command running - while true; do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o jsonpath={.items..metadata.name}) -c sleep -n circuitbreaker -- curl  -I http://pyserver/index; sleep 1; done  
+
+everything should look good now, all 200s
+
+# get pods
+> kubectl -n circuitbreaker get pods -o wide                                            on branch: main
+NAME                           READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+pyserver-v1-7c9d68c88c-bbb89   2/2     Running   0          21m   172.17.0.4    minikube   <none>           <none>
+pyserver-v2-6558c4f599-r7wf8   2/2     Running   0          21m   172.17.0.16   minikube   <none>           <none>
+pyserver-v2-6558c4f599-wlqxl   2/2     Running   0          21m   172.17.0.5    minikube   <none>           <none>
+sleep-854565cb79-wdgsw         2/2     Running   0          21m   172.17.0.18   minikube   <none>           <none>
+
+# ssh into a pyserver-v2 pod
+> kubectl exec -it pyserver-v2-6558c4f599-wlqxl  -n circuitbreaker -- /bin/sh    
+
+# install curl
+> apk add curl
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.14/main/x86_64/APKINDEX.tar.gz
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.14/community/x86_64/APKINDEX.tar.gz
+(1/4) Installing brotli-libs (1.0.9-r5)
+(2/4) Installing nghttp2-libs (1.43.0-r0)
+(3/4) Installing libcurl (7.78.0-r0)
+(4/4) Installing curl (7.78.0-r0)
+Executing busybox-1.33.1-r2.trigger
+OK: 16 MiB in 40 packages
+
+# fail one of the pods in v2, you will see some(one), depends on your settings for your outlier, 502 response codes, and it will be evicted
+> curl -X POST localhost:5000/fail
+
+# So it looks like the pod gets ejected (the bad pod is returning a 502), but afterwards we start getting 503s, if we only have one pod (replica=1) in the loadbalancer or all pods get ejected.  Thus there are no resources for the virtual service to hit, so you get a 503, this is valid; but in this exercise we have replica count of 2, so we shouldn't see this issue
 
 # how to check if the outlier worked, appears to be working
-kubectl get pods -n circuitbreaker
+> kubectl get pods -n circuitbreaker
 NAME                             READY   STATUS    RESTARTS   AGE
 fortio-deploy-576dbdfbc4-cbc9b   2/2     Running   0          22m
 pyserver-v1-7c9d68c88c-x89mw     2/2     Running   0          19m
 pyserver-v2-6558c4f599-pg2fg     2/2     Running   0          19m
 sleep-854565cb79-45z26           2/2     Running   0          19m
 
-# this doesn't always work, like the pod is unrecognized at times 
-istioctl pc endpoints fortio-deploy-576dbdfbc4-cbc9b | grep pyserver
+> istioctl pc endpoints fortio-deploy-576dbdfbc4-cbc9b -n circuitbreaker | grep pyserver
 172.17.0.16:5000                 HEALTHY     FAILED            outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local
 172.17.0.16:5000                 HEALTHY     OK                outbound|80||pyserver.circuitbreaker.svc.cluster.local
 
+# lets turn on fail mode for one of the v2 cluster pods. If you looked closely at the deployment file for deployment_502.yml you will see the replica count is 2. Let's make one of the pods return a 502 error code.
 
-Even though the above results show 503 still the Kiali topological graph shows otherwise, maybe it's something to do with calling the api from an internal app vs doing a curl on the terminal to an actual endpoint. I will test this out. Regardless at the bottom of this REAADME are some images to show this.  At this point I have not added a Gateway
+# if you want to prevent even one 502 from being shown to the client we can add retry logic to the virtualservice
+> kubectl apply -f deployment/outlier_no_gateway_retry.yml -n circuitbreaker
+
+# Running the above should shield the client from and 502 errors. Is it foolproof? I mean if all the pods are gone you will get a 503 no resources, and there isn't really much you can do then.
 
 
 ## now if you want to add a gateway, which may be the right thing to do anyway. Checked in code has gateway code
-you have to first run
+> kubectl apply -f development/outlier.yml -n circuitbreaker
+
+# then you have to run
 minikube tunnel
 
 # then double check your external IP 
@@ -328,18 +365,20 @@ while true;  do kubectl exec $(kubectl get pod -l app=sleep -n circuitbreaker -o
 
 This appears to be bypassing at the minimum the VirtualService and the DestinationRule.  In the VirtualService I changed the route weights from 50/50 to 90/10 and yet the Kiali graph still shows 50/50. Look for images below
 
-There is one concern and it was a concern that was noted on the test without the gateway. Even though graphically things look good in this scenario. I was still getting 503s on the external curl. The 503's are legit, there is no upstream, vs the 502 error my service was returning. I am not sure what is going on here. There is a discussion about it; but without a clear answer:
-https://discuss.istio.io/t/istio-give-503-error-with-no-healthy-upstream-when-pods-get-evicted/6069/3
+# I am not going to go through the same exercise of adding retry to the virtualservice yml, etc; the concepts are the same
 
+# NOTE - base ejection time does frequency-based * ejection time backoffs
+https://www.envoyproxy.io/docs/envoy/v1.15.4/intro/arch_overview/upstream/outlier
+The host is ejected for some number of milliseconds. Ejection means that the host is marked unhealthy and will not be used during load balancing unless the load balancer is in a panic scenario. The number of milliseconds is equal to the outlier_detection.base_ejection_time_ms value multiplied by the number of times the host has been ejected. This causes hosts to get ejected for longer and longer periods if they continue to fail.
 ```
 
 
 
-No gateway with no pod eviction
+No gateway with pod eviction, note there was only one replica, thus you will still get failures
 ![](images/no_gateway_5050.png)
 
 
-No gateway with pod eviction
+No gateway with pod eviction, same as above with only one replica your virtualservice does not know there are no resources available, so if that one pod or all pods are evicted in v2 it will return a 503 no resources available
 ![](images/no_gateway_100.png)
 
 
