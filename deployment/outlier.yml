@@ -37,10 +37,6 @@ spec:
         host: pyserver
         subset: v2
       weight: 50
-    retries:
-      attempts: 3
-      perTryTimeout: 2s
-      retryOn: 5xx
 
 ---
 
@@ -84,7 +80,7 @@ spec:
           maxRequestsPerConnection: 10
       outlierDetection:
         # don't send traffic for 3 minutes if errors exist
-        baseEjectionTime: 1m
+        baseEjectionTime: 3m
         # one error happens then eject it
         consecutive5xxErrors: 1
         # how often istio checks

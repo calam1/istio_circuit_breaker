@@ -324,6 +324,9 @@ OK: 16 MiB in 40 packages
 # fail one of the pods in v2, you will see some(one), depends on your settings for your outlier, 502 response codes, and it will be evicted
 > curl -X POST localhost:5000/fail
 
+# note, if you want it to pass again then run the following in the pod
+> curl -X POST localhost:5000/pass
+
 # So it looks like the pod gets ejected (the bad pod is returning a 502), but afterwards we start getting 503s, if we only have one pod (replica=1) in the loadbalancer or all pods get ejected.  Thus there are no resources for the virtual service to hit, so you get a 503, this is valid; but in this exercise we have replica count of 2, so we shouldn't see this issue
 
 # how to check if the outlier worked, appears to be working
@@ -372,6 +375,36 @@ This appears to be bypassing at the minimum the VirtualService and the Destinati
 # NOTE - base ejection time does frequency-based * ejection time backoffs
 https://www.envoyproxy.io/docs/envoy/v1.15.4/intro/arch_overview/upstream/outlier
 The host is ejected for some number of milliseconds. Ejection means that the host is marked unhealthy and will not be used during load balancing unless the load balancer is in a panic scenario. The number of milliseconds is equal to the outlier_detection.base_ejection_time_ms value multiplied by the number of times the host has been ejected. This causes hosts to get ejected for longer and longer periods if they continue to fail.
+
+
+## load testing to generate data
+# you can do this multiple ways, regarding creating data, you can run a load tester, you can curl the endpoint internally or externally(if you have a gateway), etc 
+
+# usage example 
+# get the pod of the load tester
+> export FORTIO_POD=$(kubectl get pods -lapp=fortio -n circuitbreaker -o 'jsonpath={.items[0].metadata.name}')
+# run the load test
+> kubectl exec "$FORTIO_POD" -c fortio -n circuitbreaker -- /usr/bin/fortio load -c 3 -qps 0 -n 100 -loglevel Warning http://pyserver/index
+# get the stats
+> kubectl exec "$FORTIO_POD" -n circuitbreaker -c istio-proxy -- pilot-agent request GET stats | grep pyserver
+
+## monitoring, metrics, stats, etc notes
+#for outlier detection
+https://www.envoyproxy.io/docs/envoy/v1.15.4/configuration/upstream/cluster_manager/cluster_stats#outlier-detection-statistics
+
+# an example of the v2 app. It shows how many hosts are ejected, we have a replica count of 2 and 1 of them is ejected
+# plus there's other information that we may or may not want to monitor
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_active: 1
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_consecutive_5xx: 3
+cluster.outbound|80|v2|pyserver.circuitbreaker.svc.cluster.local.outlier_detection.ejections_detected_consecutive_5xx: 3
+
+## some prometheus queries for some of the circuit breaker response flags
+rate(istio_requests_total{destination_service="pyserver.circuitbreaker.svc.cluster.local",response_flags="UO"}[5m])
+rate(istio_requests_total{destination_service="pyserver.circuitbreaker.svc.cluster.local",response_flags="URX"}[5m])
+
+## Response Flags legend/documentation
+https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage#config-access-log-format-response-flags
+
 ```
 
 
@@ -390,3 +423,13 @@ This seems to be evicting and redirecting traffic correctly look for images belo
 
 This appears to be bypassing at the minimum the VirtualService and the DestinationRule.  In the VirtualService I changed the route weights from 50/50 to 90/10 and yet the Kiali graph still shows 50/50
 ![](images/gateway_internal_call_bypass.png)
+
+
+Prometheus metrics were shown above via command line, same metrics on a Prometheus chart
+![](images/prometheus_outlier.png)
+
+Prometheus graph for UO - 
+![](images/uo.png)
+
+Prometheus graph for URX - 
+![](images/urx.png)
