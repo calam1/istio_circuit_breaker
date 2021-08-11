@@ -1,4 +1,6 @@
 Envoy circuit breaker / outlier detection demo
+Istio 1.7
+
 ```
 # This github(the circuit breaker part not the outlier detection) was created off of the code, examples, ideas from https://tech.olx.com/demystifying-istio-circuit-breaking-27a69cac2ce4
 
